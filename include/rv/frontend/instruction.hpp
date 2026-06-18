@@ -17,7 +17,7 @@ enum class Opcode {
 
 struct Instruction {
     Opcode op  = Opcode::Invalid;
-    Format fmt = Format::R;
+    Format fmt{};
     Reg    rd{};
     Reg    rs1{};
     Reg    rs2{};
