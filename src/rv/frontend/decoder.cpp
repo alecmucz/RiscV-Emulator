@@ -48,7 +48,7 @@ namespace {
         return sext(imm, 21);
     }
 
-    constexpr Opcode funct_to_op(Word f3, Word f7) noexcept {
+    constexpr Opcode normalize_opcode(Word f3, Word f7) noexcept {
         switch(f3) {
             case 0x0:
                 switch (f7) {
@@ -77,6 +77,57 @@ namespace {
         }
         return Opcode::Invalid;
     }
+
+    constexpr Opcode decode_branch(Word f3) noexcept {
+        switch (f3) {
+            case 0x0: return Opcode::Beq;
+            case 0x1: return Opcode::Bne;
+            case 0x4: return Opcode::Blt;
+            case 0x5: return Opcode::Bge;
+            case 0x6: return Opcode::Bltu;
+            case 0x7: return Opcode::Bgeu;
+        }
+        return Opcode::Invalid;
+    }
+
+    constexpr Opcode decode_load(Word f3) noexcept {
+        switch (f3) {
+            case 0x0: return Opcode::Lb;
+            case 0x1: return Opcode::Lh;
+            case 0x2: return Opcode::Lw;
+            case 0x4: return Opcode::Lbu;
+            case 0x5: return Opcode::Lhu;
+        }
+        return Opcode::Invalid;
+    }
+
+    constexpr Opcode decode_store(Word f3) noexcept {
+        switch (f3) {
+            case 0x0: return Opcode::Sb;
+            case 0x1: return Opcode::Sh;
+            case 0x2: return Opcode::Sw;
+        }
+        return Opcode::Invalid;
+    }
+
+    constexpr Opcode decode_op_imm(Word f3, Word f7) noexcept {
+        switch (f3) {
+            case 0x0: return Opcode::Addi;
+            case 0x2: return Opcode::Slti;
+            case 0x3: return Opcode::Sltiu;
+            case 0x4: return Opcode::Xori;
+            case 0x6: return Opcode::Ori;
+            case 0x7: return Opcode::Andi;
+            case 0x1: return Opcode::Slli;
+            case 0x5:
+                switch (f7) {
+                case 0x00: return Opcode::Srli;
+                case 0x20: return Opcode::Srai;
+                }
+                break;
+        }
+        return Opcode::Invalid;
+    }
 }
 
 std::expected<Instruction, DecodeError> Decoder::decode(const Word raw) noexcept {
@@ -84,35 +135,89 @@ std::expected<Instruction, DecodeError> Decoder::decode(const Word raw) noexcept
     inst.raw = raw;
 
     const Word op_field = bits(inst.raw, 6,0);
-`
+
     switch (op_field) {
-        case 0x33:  // R-Type
-            inst.op = funct_to_op(funct3(raw), funct7(raw));
+        case 0x33:  // R-type: reg-reg
             inst.fmt = Format::R;
-            inst.rd = rd(raw);
+            inst.op  = normalize_opcode(funct3(raw), funct7(raw));
+            inst.rd  = rd(raw);
             inst.rs1 = rs1(raw);
             inst.rs2 = rs2(raw);
             break;
 
-        case 0x03:  // I-Type
-        case 0x13:
-        case 0x67:
-            inst.rd = rd(raw);
+        case 0x13:  // I-type: reg-imm
+            inst.fmt = Format::I;
+            inst.op  = decode_op_imm(funct3(raw), funct7(raw));
+            inst.rd  = rd(raw);
+            inst.rs1 = rs1(raw);
+
+            inst.imm = (funct3(raw) == 0x1 || funct3(raw) == 0x5)
+                         ? static_cast<SWord>(bits(raw, 24, 20))
+                         : imm_i(raw);
             break;
 
-        case 0x23:  // S-Type
+        case 0x03:  // I-type: loads
+            inst.fmt = Format::I;
+            inst.op  = decode_load(funct3(raw));
+            inst.rd  = rd(raw);
+            inst.rs1 = rs1(raw);
+            inst.imm = imm_i(raw);
             break;
 
-        case 0x63:  // B-Type
+        case 0x67:  // I-type: jalr
+            inst.fmt = Format::I;
+            inst.op  = Opcode::Jalr;
+            inst.rd  = rd(raw);
+            inst.rs1 = rs1(raw);
+            inst.imm = imm_i(raw);
             break;
 
-        case 0x17:  // U-Type
-        case 0x37:
-            inst.rd = rd(raw);
+        case 0x73:  // I-type: system
+            inst.fmt = Format::I;
+            if (funct3(raw) == 0)
+                inst.op = (bits(raw, 31, 20) == 0) ? Opcode::Ecall : Opcode::Ebreak;
             break;
 
-        case 0x6F:  // J-Type
-            inst.rd = rd(raw);
+        case 0x0F:  // fence (no-op for now)
+            inst.fmt = Format::I;
+            inst.op  = Opcode::Fence;
+            break;
+
+        case 0x23:  // S-type: stores
+            inst.fmt = Format::S;
+            inst.op  = decode_store(funct3(raw));
+            inst.rs1 = rs1(raw);
+            inst.rs2 = rs2(raw);
+            inst.imm = imm_s(raw);
+            break;
+
+        case 0x63:  // B-type: branches
+            inst.fmt = Format::B;
+            inst.op  = decode_branch(funct3(raw));
+            inst.rs1 = rs1(raw);
+            inst.rs2 = rs2(raw);
+            inst.imm = imm_b(raw);
+            break;
+
+        case 0x37:  // U-type: lui
+            inst.fmt = Format::U;
+            inst.op  = Opcode::Lui;
+            inst.rd  = rd(raw);
+            inst.imm = imm_u(raw);
+            break;
+
+        case 0x17:  // U-type: auipc
+            inst.fmt = Format::U;
+            inst.op  = Opcode::Auipc;
+            inst.rd  = rd(raw);
+            inst.imm = imm_u(raw);
+            break;
+
+        case 0x6F:  // J-type: jal
+            inst.fmt = Format::J;
+            inst.op  = Opcode::Jal;
+            inst.rd  = rd(raw);
+            inst.imm = imm_j(raw);
             break;
 
         default:
