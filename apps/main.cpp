@@ -1,80 +1,49 @@
-#include "rv/frontend/decoder.hpp"
-#include <cstdio>
+#include <charconv>
+#include <print>
+#include <string_view>
 
-using namespace rv;
+#include <rv/frontend/decoder.hpp>
+#include <rv/frontend/instruction_formatter.hpp>
 
-static const char *op_name(Opcode o) {
-    switch (o) {
-        case Opcode::Lui: return "lui";
-        case Opcode::Auipc: return "auipc";
-        case Opcode::Jal: return "jal";
-        case Opcode::Jalr: return "jalr";
-        case Opcode::Beq: return "beq";
-        case Opcode::Bne: return "bne";
-        case Opcode::Blt: return "blt";
-        case Opcode::Bge: return "bge";
-        case Opcode::Bltu: return "bltu";
-        case Opcode::Bgeu: return "bgeu";
-        case Opcode::Lb: return "lb";
-        case Opcode::Lh: return "lh";
-        case Opcode::Lw: return "lw";
-        case Opcode::Lbu: return "lbu";
-        case Opcode::Lhu: return "lhu";
-        case Opcode::Sb: return "sb";
-        case Opcode::Sh: return "sh";
-        case Opcode::Sw: return "sw";
-        case Opcode::Addi: return "addi";
-        case Opcode::Slti: return "slti";
-        case Opcode::Sltiu: return "sltiu";
-        case Opcode::Xori: return "xori";
-        case Opcode::Ori: return "ori";
-        case Opcode::Andi: return "andi";
-        case Opcode::Slli: return "slli";
-        case Opcode::Srli: return "srli";
-        case Opcode::Srai: return "srai";
-        case Opcode::Add: return "add";
-        case Opcode::Sub: return "sub";
-        case Opcode::Sll: return "sll";
-        case Opcode::Slt: return "slt";
-        case Opcode::Sltu: return "sltu";
-        case Opcode::Xor: return "xor";
-        case Opcode::Srl: return "srl";
-        case Opcode::Sra: return "sra";
-        case Opcode::Or: return "or";
-        case Opcode::And: return "and";
-        case Opcode::Ecall: return "ecall";
-        case Opcode::Ebreak: return "ebreak";
-        case Opcode::Fence: return "fence";
-        default: return "INVALID";
+namespace {
+    std::expected<rv::Word, std::string_view> parse_word(std::string_view text) {
+        constexpr int hex_base = 16;
+        constexpr std::string_view hex_prefix = "0x";
+
+        if (text.starts_with(hex_prefix) || text.starts_with("0X")) {
+            text.remove_prefix(hex_prefix.size());
+        }
+
+        rv::Word word{};
+        const char* begin = text.data();
+        const char* end = begin + text.size();
+
+        const auto [parsed_until, error] = std::from_chars(begin, end, word, hex_base);
+
+        if (error != std::errc{} || parsed_until != end) {
+            return std::unexpected("not a valid hex word");
+        }
+
+        return word;
     }
 }
 
+int main(int argc, char** argv) {
+    rv::Addr pc = 0;
+    for (int i = 1; i < argc; ++i) {
+        auto word = parse_word(argv[i]);
+        if (!word) {
+            std::println("{:08x}:           <bad input '{}'>", pc, argv[i]);
+            pc += 4;
+            continue;
+        }
 
-int main() {
-    const uint32_t cases[] = {
-        0x00100093u,
-        0x002081b3u,
-        0x40208133u,
-        0x00832283u,
-        0x00532623u,
-        0x00208463u,
-        0x12345537u,
-        0x010000efu,
-        0x00311113u,
-        0x40315113u,
-        0x00000073u,
-        0x00100073u,
-        0xffffffffu,
-    };
-
-    for (const auto &c : cases) {
-        auto r = Decoder::decode(c);
-        std::printf("0x%08x -> ", c);
-        if (!r) { std::printf("DecodeError\n"); continue; }
-        const auto &i = *r;
-        std::printf("%-6s rd=x%-2u rs1=x%-2u rs2=x%-2u imm=%d\n",
-                    op_name(i.op), index(i.rd), index(i.rs1), index(i.rs2), i.imm);
+        auto inst = rv::Decoder::decode(*word);
+        if (inst) {
+            std::println("{:08x}:  {:08x}  {}", pc, *word, *inst);
+        } else {
+            std::println("{:08x}:  {:08x}  <decode error>", pc, *word);
+        }
+        pc += 4;
     }
-    return 0;
-
-    }
+}

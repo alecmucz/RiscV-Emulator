@@ -12,11 +12,13 @@ add_library(rv_core
         src/rv/backend/hart.cpp
         src/rv/backend/peripherals/uart.cpp
         src/rv/loader/elf_loader.cpp
+        include/rv/frontend/instruction_formatter.hpp
 )
 target_include_directories(rv_core PUBLIC include)
 target_compile_options(rv_core PRIVATE -Wall -Wextra -Wpedantic)
 
-add_executable(rv apps/main.cpp)
+add_executable(rv apps/main.cpp
+)
 target_link_libraries(rv PRIVATE rv_core)
 
 enable_testing()
