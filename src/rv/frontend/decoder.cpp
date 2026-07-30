@@ -2,7 +2,7 @@
 
 namespace rv {
 namespace {
-    constexpr Word bits(rv::Word raw, Word hi, Word lo) noexcept {
+    constexpr Word bits(Word raw, Word hi, Word lo) noexcept {
         const int width = hi - lo + 1;
         return (raw >> lo) & ((Word{1} << width) - 1);
     }
@@ -134,15 +134,21 @@ std::expected<Instruction, DecodeError> Decoder::decode(const Word raw) noexcept
     Instruction inst{};
     inst.raw = raw;
 
-    const Word op_field = bits(inst.raw, 6,0);
-
-    switch (op_field) {
+    switch (bits(inst.raw, 6,0)) {  // Opcode
         case 0x33:  // R-type: reg-reg
             inst.fmt = Format::R;
             inst.op  = normalize_opcode(funct3(raw), funct7(raw));
             inst.rd  = rd(raw);
             inst.rs1 = rs1(raw);
             inst.rs2 = rs2(raw);
+            break;
+
+        case 0x03:  // I-type: loads
+            inst.fmt = Format::I;
+            inst.op  = decode_load(funct3(raw));
+            inst.rd  = rd(raw);
+            inst.rs1 = rs1(raw);
+            inst.imm = imm_i(raw);
             break;
 
         case 0x13:  // I-type: reg-imm
@@ -156,14 +162,6 @@ std::expected<Instruction, DecodeError> Decoder::decode(const Word raw) noexcept
                          : imm_i(raw);
             break;
 
-        case 0x03:  // I-type: loads
-            inst.fmt = Format::I;
-            inst.op  = decode_load(funct3(raw));
-            inst.rd  = rd(raw);
-            inst.rs1 = rs1(raw);
-            inst.imm = imm_i(raw);
-            break;
-
         case 0x67:  // I-type: jalr
             inst.fmt = Format::I;
             inst.op  = Opcode::Jalr;
@@ -174,11 +172,22 @@ std::expected<Instruction, DecodeError> Decoder::decode(const Word raw) noexcept
 
         case 0x73:  // I-type: system
             inst.fmt = Format::I;
-            if (funct3(raw) == 0)
-                inst.op = (bits(raw, 31, 20) == 0) ? Opcode::Ecall : Opcode::Ebreak;
+            if (funct3(raw) == 0) {
+                switch (bits(raw, 31, 20)) {
+                    case 0x000:
+                        inst.op = Opcode::Ecall;
+                        break;
+                    case 0x001:
+                        inst.op = Opcode::Ebreak;
+                        break;
+                    default:
+                        inst.op = Opcode::Invalid;
+                        break;
+                }
+            }
             break;
 
-        case 0x0F:  // fence (no-op for now)
+        case 0x0F:  // fence
             inst.fmt = Format::I;
             inst.op  = Opcode::Fence;
             break;

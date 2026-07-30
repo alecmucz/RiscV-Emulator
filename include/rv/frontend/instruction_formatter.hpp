@@ -75,36 +75,37 @@ struct std::formatter<rv::Instruction> {
 
         switch (inst.fmt) {
             case rv::Format::R:
-                out = std::format_to(out, " x{} , x{} , x{}",
+                out = std::format_to(out, " x{} x{} x{}",
                                      rv::index(inst.rd),
                                      rv::index(inst.rs1),
                                      rv::index(inst.rs2));
                 break;
             case rv::Format::I:
-                out = std::format_to(out, " x{} , x{} , {}",
+                out = std::format_to(out, " x{} {}(x{})",
                                      rv::index(inst.rd),
-                                     rv::index(inst.rs1),
-                                     inst.imm);
+                                     inst.imm,
+                                     rv::index(inst.rs1)
+                                     );
                 break;
             case rv::Format::S:
-                out = std::format_to(out, " x{} , x{} , {}",
+                out = std::format_to(out, " x{} x{} {}",
                                      rv::index(inst.rs1),
                                      rv::index(inst.rs2),
                                      inst.imm);
                 break;
             case rv::Format::B:
-                out = std::format_to(out, " x{} , x{} , {}",
+                out = std::format_to(out, " x{} x{} {}",
                                      rv::index(inst.rs1),
                                      rv::index(inst.rs2),
                                      inst.imm);
                 break;
             case rv::Format::U:
-                out = std::format_to(out, " x{} , {}",
+                out = std::format_to(out, " x{} {}",
                                      rv::index(inst.rd),
                                      inst.imm);
                 break;
             case rv::Format::J:
-                out = std::format_to(out, " x{} , {}",
+                out = std::format_to(out, " x{} {}",
                                      rv::index(inst.rd),
                                      inst.imm);
                 break;
