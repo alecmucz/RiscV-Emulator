@@ -21,8 +21,8 @@ struct Instruction {
     Reg    rd{};
     Reg    rs1{};
     Reg    rs2{};
-    SWord  imm = 0; // CRS addresses occupy I-Immediate Fields (RiscV Spec)
-    Word   raw = 0;
+    SWord  imm{0}; // CRS addresses occupy I-Immediate Fields (RiscV Spec)
+    Word   raw{0};
 };
 
 }  // namespace rv

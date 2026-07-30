@@ -64,5 +64,5 @@ TEST_CASE("SYSTEM INSTRUCTION LENIENCY/BOUNDARY CHECKS", "[decoder]") {
 }
 
 TEST_CASE("RV32I Instruction Suite Test", "[decoder]") {
-
+    
 }
